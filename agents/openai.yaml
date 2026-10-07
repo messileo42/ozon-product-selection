@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ozon Product Selection"
+  short_description: "Guided Ozon product research with 1688 sourcing"
+  default_prompt: "Use $ozon-product-selection to guide me through an Ozon product-selection session."
