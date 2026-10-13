@@ -1,6 +1,6 @@
 ---
 name: ozon-product-selection
-description: Act as a professional Ozon product-selection analyst for the Russian market. Use authenticated Ozon storefront and 1688 supplier research to discover, validate, compare, shortlist, and source concrete product propositions; distinguish demand from competition, return risk, commercial feasibility, and supplier fit; produce evidence-backed launch recommendations and an Excel decision workbook; then perform Russian keyword and listing-copy analysis only for user-selected finalists. Excludes seller-account APIs, product upload, pricing changes, and inventory actions.
+description: Act as a professional Ozon product-selection analyst for the Russian market. Use authenticated Ozon storefront and 1688 supplier research to discover, validate, compare, shortlist, and source concrete product propositions; distinguish demand from competition, return risk, commercial feasibility, and supplier fit; and deliver a simplified selection workbook plus a variant-level Ozon listing-reference workbook with freight-aware suggested pricing. Perform Russian keyword and listing-copy analysis only for user-selected finalists. Excludes seller-account APIs, product upload, pricing changes, and inventory actions.
 ---
 
 # Ozon Product Selection
@@ -28,7 +28,7 @@ Behave as a product-selection professional, not a search-results collector.
 - Authenticated buyer/storefront browser sessions are allowed. Do not access Ozon Seller, private seller analytics, seller-account APIs, or unrelated account data.
 - The user must enter passwords, one-time codes, and CAPTCHAs. Never ask the user to paste credentials into chat, never export cookies or tokens, and never save credentials.
 - Do not upload products, modify listings, set prices, contact suppliers, place orders, or change inventory.
-- Do not impose a profit target or reject a product based on estimated profit. Display the observed Ozon price and 1688 purchase price instead.
+- Do not invent hidden profitability assumptions. When producing suggested prices, expose the freight source, commission, fees, reserve, contribution buffer, exchange rate, procurement tier, and missing costs. A price estimate is decision support, not a profit guarantee.
 - Size and weight are decision data, not automatic exclusion rules. Show them clearly and place unusually large or heavy products in a separate review group for the user.
 
 ## Phase 1: guided intake
@@ -72,7 +72,7 @@ Use current web research because demand, prices, competition, supplier offers, a
 4. **Competition structure:** Assess more than result count. Examine review concentration, brand and seller concentration, price compression, sponsored-result density when visible, listing quality, specification coverage, and whether weak listings leave a defendable gap. Distinguish a large market from an easy market.
 5. **Commercial feasibility:** Record the observed Ozon price distribution and the exact 1688 variant/price tier. Compare like with like by material, size, pack count, and included accessories. Identify price room only from known inputs; do not fabricate shipping, commission, tax, advertising, or return costs and do not impose an unrequested profit threshold.
 6. **Return and operational risk:** Evaluate fit/size ambiguity, compatibility, installation difficulty, material-expectation gaps, breakage, leakage, odor, color variance, packaging damage, seasonal obsolescence, certification, intellectual property, and safety claims. Use review themes when available, not stereotypes.
-7. **Supply fit:** For promising candidates, inspect multiple 1688 offers when practical. Capture exact variant, price tier, MOQ, supplier, transaction/repeat-purchase proxies, customization, lead-time or stock signals, unit dimensions/weight, packaging, and URL. Treat 1688 transaction counts as supplier-side proxies, not proof of product quality. Never substitute carton measurements for unit measurements; mark unavailable fields as unknown.
+7. **Supply fit:** For promising candidates, inspect multiple 1688 offers when practical. Open the exact authenticated product-detail pages, not only search-result cards. Capture exact variant, SKU when visible, price tier, MOQ, supplier, transaction/repeat-purchase proxies, customization, lead-time or stock signals, unit dimensions/weight, packaging, and canonical offer URL. Treat 1688 transaction counts as supplier-side proxies, not proof of product quality. Never substitute carton measurements for unit measurements; mark unavailable fields as unknown.
 8. **Specification lock:** State the recommended test specification, pack count, material, size range, color strategy, must-have accessories, and prohibited substitutions. The recommended Ozon proposition must match the researched 1688 variant.
 9. **Decision and invalidation:** Assign `A/B/C/X`, confidence, launch wave, primary reason, primary risk, missing evidence, and a concrete kill/hold condition. Examples include MOQ above the testable level, packed size exceeding the user’s constraint, unverifiable material claims, or the target specification having no price room once known costs are supplied.
 10. **Portfolio construction:** Build a shortlist with different demand drivers and risk profiles. Avoid concentrating the entire first wave in one use case, one supplier, or one highly seasonal peak unless the user explicitly requests it.
@@ -92,39 +92,53 @@ Prefer evidence in this order:
 
 Label every important value as fact, proxy, estimate, forecast, or unknown. Record URL, observation date, covered period when applicable, access mode, and the exact product/variant scope. Do not upgrade weak evidence because it supports a preferred conclusion.
 
+## SKU extraction and pricing
+
+For initial delivery and any later refresh of the listing-reference workbook, read [references/sku-pricing-workbook.md](references/sku-pricing-workbook.md) completely before extracting variants or calculating prices.
+
+Use the current freight and tariff workbooks in the active project's `inputs/` directory as read-only calculation sources. Do not hardcode remembered rates. The listing-reference workbook must use exact 1688 detail pages and one row per sellable specification. Missing SKU, weight, or dimensions remain blank; never replace them with guesses. Suggested prices must use the current freight algorithms, an executable 1688 purchase tier, current Ozon market positioning, and disclosed professional pricing assumptions.
+
 ## Phase 3: initial delivery and finalist selection
 
-Return the initial results in both places:
+Return the initial results in three places:
 
 - A readable chat table.
-- An `.xlsx` workbook created with the spreadsheet skill and visually verified before delivery.
+- A simplified product-selection `.xlsx` workbook.
+- A variant-level Ozon listing-reference `.xlsx` workbook.
 
-Use these workbook sheets:
+Create exactly two final Excel files with the spreadsheet skill and visually verify every sheet.
 
-- `决策摘要`: A/B/C/X counts, recommended first wave, later waves, portfolio balance, decisive risks, and unresolved blockers.
-- `候选池`: ranked candidates.
-- `首批测试计划`: A and selected B candidates with recommended specification, launch order, sampling/checklist, missing information, and kill/hold conditions.
-- `尺寸重量复核`: large or heavy candidates requiring user judgment.
-- `自动排除`: excluded ideas and reasons.
-- `来源与方法`: sources, dates, metric definitions, proxies, assumptions, and limitations.
+### Workbook 1: simplified selection decision
 
-For each candidate include, when available:
+Use three sheets only:
 
-- Decision grade, confidence, rank, and launch wave.
-- Target buyer, use scenario, and precise product proposition.
-- Recommended test specification, pack/variant, and prohibited substitutions.
-- Specific 1688 product and URL.
-- Ozon demand evidence and its limitations.
-- Russian search/keyword opportunity summary.
-- Competition structure, defendable gap, and basis.
-- Observed Ozon selling-price range.
-- 1688 unit purchase price and MOQ.
-- Unit or packed weight and dimensions.
-- Trend and seasonality.
-- Main risk, missing evidence, and kill/hold condition.
-- Recommended sampling or first-wave validation action.
-- Whether each important value is verified, proxied, estimated, or unknown.
-- Whether Ozon and 1688 evidence came from an authenticated session or anonymous/public fallback.
+- `选品结论`: one row per product proposition with only `编号`, `决策`, `置信度`, `产品命题`, `推荐规格`, `上架波次`, `需求与竞争结论`, `Ozon价格带`, `1688成本/MOQ`, `主要风险或缺失`, `下一步或暂停条件`, and `来源状态`.
+- `自动排除`: excluded product directions, decisive reason, and safer substitute.
+- `来源与方法`: source URLs, observation date, access mode, evidence labels, assumptions, and limitations.
+
+Keep dimensions, detailed supplier variants, freight builds, and verbose evidence out of this workbook unless they are necessary to explain a decision. Fold large/weight concerns into `主要风险或缺失`; do not maintain separate summary, candidate-pool, test-plan, and size-review sheets that repeat the same decision.
+
+### Workbook 2: Ozon listing reference
+
+Include A candidates and B candidates that have a specific 1688 product-detail offer. C and X candidates are not listing-ready and do not belong in this workbook.
+
+The main sheet is `Ozon上品参考`. A product must occupy multiple rows whenever it has multiple intended sellable specifications. Each exact specification or variant combination is one row. Use exactly these columns in this order:
+
+1. `sku`
+2. `自定义货号`
+3. `重量（g）`
+4. `长度（mm）`
+5. `宽度（mm）`
+6. `高度（mm）`
+7. `商品详情页链接`
+8. `成本价`
+9. `建议售价`
+
+Add a supporting `定价依据` sheet containing the per-SKU procurement tiers, quantity effects, freight route, chargeable weight, commissions, fees, exchange rate, reserves, break-even price, conservative floor, comparable Ozon price band, assumptions, and pricing status. Keep the nine-column main sheet unchanged.
+
+The `sku`, weight, length, width, height, exact detail link, MOQ, and variant price must come from the authenticated 1688 product-detail page. Search-page links and search-card starting prices are not substitutes. Leave unavailable SKU or measurement fields blank. If required freight inputs are missing, leave `建议售价` blank and state the blocker in `定价依据`.
+
+Name the final files clearly, for example `Ozon选品决策_YYYY-MM-DD.xlsx` and `Ozon上品参考_YYYY-MM-DD.xlsx`. The final run directory must contain only these two `.xlsx` deliverables. Delete task-created builders, previews, extracts, inspect files, JSON, CSV, and other intermediates after verification, while preserving all source inputs and unrelated user files.
 
 Do not generate final titles or promotional copy yet. After delivering the candidate pool, ask one question: which candidate numbers should enter the final analysis?
 
@@ -142,7 +156,7 @@ For each finalist:
 6. Provide Chinese translations for the title, promotional phrase, keyword set, and positioning.
 7. Explain which terms and claims are evidence-backed, which are inferred, which require supplier proof, and what should be tested later.
 
-Update both the chat result and the same Excel workbook. Add or refresh a `最终关键词与文案` sheet containing:
+Update the chat result and Workbook 1. Add or refresh a `最终关键词与文案` sheet containing:
 
 - Candidate identifier.
 - Decision grade, positioning, target buyer, exact specification, and variant plan.
@@ -152,6 +166,8 @@ Update both the chat result and the same Excel workbook. Add or refresh a `最�
 - Search-intent explanation.
 - Evidence/proxy sources and observation dates.
 - Uncertainty and recommended test.
+
+Refresh Workbook 2 only when the user's finalist choice changes the approved products, variants, costs, or suggested prices. The final output remains exactly two Excel files; do not create a third workbook for final copy.
 
 ## Quality rules
 
@@ -163,5 +179,9 @@ Update both the chat result and the same Excel workbook. Add or refresh a `最�
 - Compare equivalent specifications. If pack count, material, size, or included accessories differ, state that the price comparison is not like-for-like.
 - A professional recommendation must be actionable: it needs a concrete product specification, decision grade, evidence basis, key risk, missing fact, and kill/hold condition.
 - Preserve uncertainty. Strong language requires strong evidence; otherwise use `待验证` and state the next verification step.
+- The listing-reference workbook is specification-grain. Never collapse multiple sellable variants into one product row.
+- Use exact 1688 detail URLs. If only a search URL is available, the listing-reference link stays blank until an offer is verified.
+- Missing variant SKU, weight, dimensions, or freight inputs must remain blank or unresolved. Do not fill them with category averages or another variant's data.
+- Complete only after exactly two final `.xlsx` files pass formula, saved-file, and visual verification and task-created intermediates have been removed.
 - Treat Russian copy as a final-stage deliverable, never as evidence that a product has demand.
 - Stop after the final chat and workbook are delivered. Any listing or account work requires a separate request and workflow.
