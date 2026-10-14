@@ -86,24 +86,30 @@ Field rules:
 - `自定义货号`: uppercase pinyin initials of the Chinese product name, one to four letters, followed by a unique four-digit sequence. Remove brand names before forming the prefix. Sort by product decision rank and supplier variant order, then assign `0001`, `0002`, and so on. Each row must be unique. Example format: `BZ0001`.
 - `重量（g）` and dimensions: use variant-specific single-unit shipping/packed data from selectable text or a visually verified detail-page image. Convert kilograms to grams and centimeters to millimeters while retaining raw values in `定价依据`. Product-specific measurements—such as fit measurements, diameter, usable length, capacity, compatible-device size, or recommended user/pet range—are not automatically package length/width/height. Keep variant-bound descriptors in `sku` or supporting evidence and do not force them into logistics columns. Do not substitute product-only dimensions, net weight, carton data, another variant's data, category estimates, or a visual size guess. Blank logistics dimensions are acceptable after complete inspection and do not block row creation or cost extraction.
 - `商品详情页链接`: store the verified exact 1688 detail URL as a hyperlink. The same offer URL may repeat across its variants.
-- Numeric measurement and suggested-price cells must be numeric, not numbers embedded in text. Keep `sku` and `自定义货号` as text.
+- Numeric measurement and suggested-price cells must be numeric, not numbers embedded in text. Keep `sku` and `自定义货号` as text. Preserve the exact nine headers, but display currency units in every populated price row: `成本价` uses `¥`/CNY and `建议售价` uses `RUB` or `₽`.
 
 ## Cost-price field
 
-Build `成本价` from the exact variant's authenticated 1688 detail page, not a search card.
+`成本价` means the per-unit China-side acquisition cost for the intended first test, not the bare 1688 sticker price:
 
-- Cost extraction is independent of freight completeness. Never leave `成本价` blank merely because weight, dimensions, a freight calculator, commission, or exchange rate is missing.
+`main-sheet cost price = executable-tier variant purchase price + allocated 1688 domestic freight + fixed ¥3 label fee + known mandatory supplier/packaging charges`
+
+Here `1688国内运费` means transport from the supplier to the user's designated China consolidation/processing warehouse. It is not the GUOO/Ozon cross-border freight. Cross-border international freight is calculated separately from the current input workbooks and is added only in the suggested-price build.
+
+- Cost extraction is independent of cross-border freight completeness. Never omit a verified purchase tier merely because weight, dimensions, international freight, commission, or exchange rate is missing.
 - Select each valid attribute combination and observe whether its price, MOQ, or stock state changes. Use the combination-specific price when it changes; otherwise repeat the verified offer-level price tiers across the applicable rows.
 - Capture MOQ, every visible quantity-price tier, currency, and whether the value is per piece, set, pair, pack, or another unit.
-- Express the cell as concise structured text, for example: `MOQ 2件；2–49件 ¥12.80/件；50–199件 ¥11.90/件；≥200件 ¥10.80/件`.
-- If 1688 exposes only an offer price range after all selectable combinations are checked, record the visible range and MOQ rather than leaving the cell blank. Use the upper end for provisional pricing and mark `单规格价待确认` in `定价依据`.
-- When supplier domestic freight, packaging, customization, or mandatory accessories are visible and attributable per order or per unit, include them in the detailed pricing build. Otherwise mark them unknown; never assume they are free.
+- Read the domestic-freight quote for the destination/warehouse used in the run. Allocate order-level domestic freight by the executable purchase quantity, not by an unreachable scale tier. If the page provides several genuine first-test quantities or destination-dependent quotes, calculate a lower and upper per-unit allocation and expose both.
+- Add the fixed ¥3 label fee once per sellable unit. Do not add it again in the international-freight or break-even calculation.
+- Include visible mandatory packaging, customization, or required accessories. Optional add-ons do not belong in the default cost.
+- Use a numeric CNY value when every component is exact. When at least one defensible component is bounded, express a concise range such as `¥15.80–¥18.30` and put the component breakdown in `定价依据`. If no defensible domestic-freight bound exists, do not invent one: use `≥¥15.80（国内运费待确认）`, where the minimum includes the purchase price, ¥3 label fee, and every other known charge.
+- If 1688 exposes only a purchase-price range after all selectable combinations are checked, preserve that range and MOQ in `定价依据`; use the executable upper bound for provisional pricing.
 - Calculate total procurement cost for at least the executable first-test quantity and each genuine supplier price tier. Do not fabricate a discount curve when only one price is visible.
 - Use the unit price for the intended first-test quantity when calculating the main suggested price. Do not price the first test using an unreachable large-order tier.
 
 ## Freight and chargeable weight
 
-Use the current formulas and limits from the two input workbooks.
+Use the current formulas and limits from the two input workbooks for cross-border international freight. Do not substitute those charges for the 1688 domestic freight included in the main-sheet `成本价`, and do not double count the ¥3 label fee.
 
 1. Convert the captured weight and dimensions to the units required by the source workbook.
 2. Determine the applicable product/parcel group from chargeable weight and proposed Ozon value.
@@ -127,10 +133,27 @@ A proxy-backed price remains a launch estimate. It must be recalculated after sa
 
 Create a second sheet named `定价依据` in the listing-reference workbook. It may contain additional calculation columns; the nine-column main sheet must remain unchanged.
 
+At minimum, `定价依据` must expose these machine-checkable columns, using the exact labels below; additional evidence and pricing columns may follow:
+
+- `自定义货号`
+- `采购价下限(CNY)`
+- `采购价上限(CNY)`
+- `国内运费下限(CNY)`
+- `国内运费上限(CNY)`
+- `贴单费(CNY)`
+- `其他国内成本(CNY)`
+- `成本价下限(CNY)`
+- `成本价上限(CNY)`
+- `国际运费(CNY)`
+- `建议售价(RUB)`
+- `定价状态`
+
+`贴单费(CNY)` is `3` for every sellable unit under the user's current rule. `成本价下限/上限` must equal the corresponding purchase-price bound plus domestic-freight bound plus label fee plus other domestic cost. Keep international freight out of these two columns.
+
 For every custom item number, show:
 
 - exact 1688 variant and procurement tier used;
-- item cost and known domestic/packaging cost in CNY;
+- variant purchase price, first-test quantity, order-level domestic freight, per-unit domestic-freight allocation, fixed ¥3 label fee, mandatory supplier/packaging charge, and main-sheet cost-price lower/upper bounds in CNY;
 - actual weight, volumetric weight, chargeable weight, logistics group, route, and freight in CNY;
 - image-extraction audit fields for image-derived values: source type, raw recognized text, image position/description, normalized value, variant mapping, and confidence;
 - label/per-order fee, exchange rate, Ozon category commission, other percentage fees, and their sources;
@@ -139,16 +162,18 @@ For every custom item number, show:
 
 Calculate from known inputs:
 
-`known unit cost = item cost + known domestic/packaging cost + international freight + fixed per-order/label fees`
+`main-sheet cost price = purchase price + allocated domestic freight + fixed ¥3 label fee + mandatory supplier/packaging charges`
 
-`break-even sale price = known unit cost / (1 - commission rate - other percentage fees)`
+`known landed unit cost = main-sheet cost price + cross-border international freight + any other non-duplicated fixed fulfillment fees`
+
+`break-even sale price = known landed unit cost / (1 - commission rate - other percentage fees)`
 
 For a conservative floor, include an explicit return/risk reserve and target contribution buffer. If the user does not provide them, use these editable professional defaults:
 
 - return/risk reserve: 3% for simple low-return goods, 5% for ordinary goods, and 8%–12% for fit-sensitive, installation-sensitive, fragile, or high-return goods;
 - target contribution buffer after known variable costs: 15%.
 
-`conservative floor = known unit cost / (1 - commission rate - other percentage fees - return/risk reserve - target contribution buffer)`
+`conservative floor = known landed unit cost / (1 - commission rate - other percentage fees - return/risk reserve - target contribution buffer)`
 
 Use the current Ozon category commission when it can be verified. Otherwise use the calculator's current documented assumption; if neither is available, use a clearly labeled conservative estimate rather than leaving the formula silently optimistic.
 
@@ -171,6 +196,22 @@ Do not withhold all suggested prices merely because some variants lack package d
 Show the effect of MOQ, middle, and scale purchase tiers in `定价依据`. Scale discounts improve margin; they do not justify lowering the launch price before demand is proven.
 
 No suggested price is a profit guarantee. Unknown advertising, storage, return, tax, domestic freight, packaging, or promotion costs must remain visible as missing inputs or assumptions.
+
+## Positional and currency validation gate
+
+The nine-column sheet is vulnerable to silent left shifts when a row array contains fewer than nine values. Treat this as a blocking export defect.
+
+1. Build rows through a named nine-field record or assert `row.length === 9` before assigning values.
+2. Inspect the saved range, not only the in-memory source array.
+3. For every populated row verify:
+   - columns A and B are non-empty text;
+   - columns C–F are blank or numeric packed measurements;
+   - column G is the exact `https://detail.1688.com/offer/<id>.html` link;
+   - column H is the CNY cost value/range defined above;
+   - column I is a numeric RUB recommendation or blank only when `定价依据` says `暂停`.
+4. Reject any row containing an HTTP URL outside column G.
+5. Verify numeric H cells use a `¥`/CNY number format, range text includes `¥`, and numeric I cells use a `RUB` or `₽` number format.
+6. Run `../scripts/validate_listing_workbook.py` against the exported workbook and fix all failures before delivery. The validator also checks the required `定价依据` columns, the fixed ¥3 label fee, and the cost-bound arithmetic.
 
 ## Workbook construction and cleanup
 
