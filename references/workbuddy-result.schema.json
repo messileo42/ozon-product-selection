@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkBuddy 1688 offer extraction result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "candidate_id",
+    "supplier_url",
+    "canonical_offer_url",
+    "offer_id",
+    "title",
+    "status",
+    "access_mode",
+    "variant_axes",
+    "skus",
+    "domestic_freight",
+    "missing_fields",
+    "warnings",
+    "fetched_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "job_id": { "type": "string", "minLength": 1 },
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "supplier_url": { "type": "string", "format": "uri" },
+    "canonical_offer_url": {
+      "type": "string",
+      "pattern": "^https://detail\\.1688\\.com/offer/[0-9]+\\.html(?:[?#].*)?$"
+    },
+    "offer_id": { "type": "string", "pattern": "^[0-9]+$" },
+    "title": { "type": ["string", "null"] },
+    "status": {
+      "enum": [
+        "complete",
+        "partial",
+        "blocked_login",
+        "blocked_captcha",
+        "invalid_offer",
+        "failed"
+      ]
+    },
+    "access_mode": {
+      "enum": ["authenticated", "anonymous", "unavailable"]
+    },
+    "variant_axes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "values"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "values": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "skus": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sku" }
+    },
+    "domestic_freight": { "$ref": "#/$defs/domesticFreight" },
+    "missing_fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fetched_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "nullableNumber": { "type": ["number", "null"], "minimum": 0 },
+    "selectedOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "label"],
+      "properties": {
+        "axis": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "priceTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_qty", "max_qty", "unit_price_cny", "unit", "raw_text"],
+      "properties": {
+        "min_qty": { "type": "integer", "minimum": 1 },
+        "max_qty": { "type": ["integer", "null"], "minimum": 1 },
+        "unit_price_cny": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "minLength": 1 },
+        "raw_text": { "type": "string" }
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gross_weight_g",
+        "length_mm",
+        "width_mm",
+        "height_mm",
+        "scope",
+        "source_type",
+        "source_location",
+        "raw_text",
+        "confidence"
+      ],
+      "properties": {
+        "gross_weight_g": { "$ref": "#/$defs/nullableNumber" },
+        "length_mm": { "$ref": "#/$defs/nullableNumber" },
+        "width_mm": { "$ref": "#/$defs/nullableNumber" },
+        "height_mm": { "$ref": "#/$defs/nullableNumber" },
+        "scope": {
+          "enum": [
+            "single_unit_packed",
+            "product_only",
+            "carton",
+            "multi_pack",
+            "conflicting",
+            "unavailable"
+          ]
+        },
+        "source_type": {
+          "enum": ["page_text", "detail_image", "spec_image", "derived", "none"]
+        },
+        "source_location": { "type": ["string", "null"] },
+        "raw_text": { "type": ["string", "null"] },
+        "confidence": { "enum": ["high", "medium", "low", "none"] }
+      }
+    },
+    "sku": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sku_display_key",
+        "supplier_sku_code",
+        "selected_options",
+        "purchasable",
+        "stock_state",
+        "price_tiers",
+        "executable_tier",
+        "mandatory_charge_cny",
+        "measurement",
+        "evidence",
+        "warnings"
+      ],
+      "properties": {
+        "sku_display_key": { "type": "string", "minLength": 1 },
+        "supplier_sku_code": { "type": ["string", "null"] },
+        "selected_options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/selectedOption" }
+        },
+        "purchasable": { "type": "boolean" },
+        "stock_state": {
+          "enum": ["in_stock", "out_of_stock", "limited", "unknown"]
+        },
+        "price_tiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/priceTier" }
+        },
+        "executable_tier": {
+          "oneOf": [
+            { "$ref": "#/$defs/priceTier" },
+            { "type": "null" }
+          ]
+        },
+        "mandatory_charge_cny": { "$ref": "#/$defs/nullableNumber" },
+        "measurement": { "$ref": "#/$defs/measurement" },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "source_type", "source_location", "raw_text"],
+            "properties": {
+              "field": { "type": "string", "minLength": 1 },
+              "source_type": { "type": "string", "minLength": 1 },
+              "source_location": { "type": ["string", "null"] },
+              "raw_text": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "domesticFreight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "destination",
+        "order_quantity",
+        "order_freight_lower_cny",
+        "order_freight_upper_cny",
+        "per_unit_lower_cny",
+        "per_unit_upper_cny",
+        "raw_text",
+        "status"
+      ],
+      "properties": {
+        "destination": { "type": ["string", "null"] },
+        "order_quantity": { "type": ["integer", "null"], "minimum": 1 },
+        "order_freight_lower_cny": { "$ref": "#/$defs/nullableNumber" },
+        "order_freight_upper_cny": { "$ref": "#/$defs/nullableNumber" },
+        "per_unit_lower_cny": { "$ref": "#/$defs/nullableNumber" },
+        "per_unit_upper_cny": { "$ref": "#/$defs/nullableNumber" },
+        "raw_text": { "type": ["string", "null"] },
+        "status": { "enum": ["exact", "bounded", "unknown", "not_applicable"] }
+      }
+    }
+  }
+}
