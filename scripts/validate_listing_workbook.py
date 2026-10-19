@@ -36,6 +36,10 @@ REQUIRED_PRICING_HEADERS = [
     "国际运费(CNY)",
     "建议售价(RUB)",
     "定价状态",
+    "包装数据来源",
+    "包装数据原文/推导",
+    "包装数据置信度",
+    "缺失字段与补采记录",
 ]
 
 
@@ -71,7 +75,10 @@ def find_pricing_header(sheet) -> tuple[int, dict[str, int]]:
 
 
 def as_number(value: object) -> float | None:
-    return float(value) if isinstance(value, (int, float)) else None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if isfinite(number) else None
 
 
 def is_positive_number(value: object) -> bool:
@@ -121,6 +128,8 @@ def validate(path: Path) -> list[str]:
         return [str(exc)]
 
     populated_rows: list[list[object]] = []
+    main_rows_by_item: dict[str, tuple[int, list[object]]] = {}
+    seen_offer_skus: dict[tuple[str, str], int] = {}
     for row in range(header_row + 1, sheet.max_row + 1):
         values = [sheet.cell(row, col).value for col in range(1, 10)]
         if all(value in (None, "") for value in values):
@@ -128,13 +137,33 @@ def validate(path: Path) -> list[str]:
         populated_rows.append(values)
         if not values[0] or not values[1]:
             errors.append(f"第{row}行：sku或自定义货号为空")
+        else:
+            item_no = str(values[1]).strip()
+            if item_no in main_rows_by_item:
+                errors.append(
+                    f"第{row}行：自定义货号{item_no}与第"
+                    f"{main_rows_by_item[item_no][0]}行重复"
+                )
+            else:
+                main_rows_by_item[item_no] = (row, values)
         for col in range(3, 7):
             value = values[col - 1]
-            if value not in (None, "") and not isinstance(value, (int, float)):
-                errors.append(f"第{row}行：{sheet.cell(header_row, col).value}必须为空或数值")
+            if value not in (None, "") and not is_positive_number(value):
+                errors.append(
+                    f"第{row}行：{sheet.cell(header_row, col).value}必须为空或正数值"
+                )
         link = values[6]
         if not isinstance(link, str) or not DETAIL_URL.match(link.strip()):
             errors.append(f"第{row}行：G列不是有效1688详情链接")
+        elif values[0]:
+            offer_sku = (link.strip(), str(values[0]).strip())
+            if offer_sku in seen_offer_skus:
+                errors.append(
+                    f"第{row}行：同一详情链接与sku组合和第"
+                    f"{seen_offer_skus[offer_sku]}行重复"
+                )
+            else:
+                seen_offer_skus[offer_sku] = row
         for col in [3, 4, 5, 6, 8, 9]:
             value = values[col - 1]
             if isinstance(value, str) and value.lower().startswith(("http://", "https://")):
@@ -146,8 +175,8 @@ def validate(path: Path) -> list[str]:
             errors.append(f"第{row}行：成本价未显示CNY/¥单位")
         price_cell = sheet.cell(row, 9)
         if price_cell.value not in (None, ""):
-            if not isinstance(price_cell.value, (int, float)):
-                errors.append(f"第{row}行：建议售价必须为数值或留空")
+            if not is_positive_number(price_cell.value):
+                errors.append(f"第{row}行：建议售价必须为正数值或留空")
             elif not has_rub_unit(price_cell.number_format or ""):
                 errors.append(f"第{row}行：建议售价未显示RUB/₽单位")
 
@@ -176,11 +205,20 @@ def validate(path: Path) -> list[str]:
         errors.append(str(exc))
         return errors
 
+    pricing_rows_by_item: dict[str, int] = {}
     for row in range(pricing_header_row + 1, pricing.max_row + 1):
         item_no = pricing.cell(row, columns["自定义货号"]).value
         if item_no in (None, ""):
             continue
-        numeric_headers = REQUIRED_PRICING_HEADERS[1:11]
+        item_key = str(item_no).strip()
+        if item_key in pricing_rows_by_item:
+            errors.append(
+                f"定价依据第{row}行：自定义货号{item_key}与第"
+                f"{pricing_rows_by_item[item_key]}行重复"
+            )
+        else:
+            pricing_rows_by_item[item_key] = row
+        numeric_headers = REQUIRED_PRICING_HEADERS[1:9]
         numbers: dict[str, float] = {}
         for header in numeric_headers:
             value = as_number(pricing.cell(row, columns[header]).value)
@@ -188,6 +226,30 @@ def validate(path: Path) -> list[str]:
                 errors.append(f"定价依据第{row}行：{header}必须为数值")
             else:
                 numbers[header] = value
+        positive_headers = {
+            "采购价下限(CNY)", "采购价上限(CNY)",
+            "成本价下限(CNY)", "成本价上限(CNY)",
+        }
+        nonnegative_headers = {
+            "国内运费下限(CNY)", "国内运费上限(CNY)",
+            "贴单费(CNY)", "其他国内成本(CNY)",
+        }
+        for header in positive_headers & numbers.keys():
+            if numbers[header] <= 0:
+                errors.append(f"定价依据第{row}行：{header}必须大于0")
+        for header in nonnegative_headers & numbers.keys():
+            if numbers[header] < 0:
+                errors.append(f"定价依据第{row}行：{header}不能为负数")
+        if (
+            {"采购价下限(CNY)", "采购价上限(CNY)"}.issubset(numbers)
+            and numbers["采购价下限(CNY)"] > numbers["采购价上限(CNY)"]
+        ):
+            errors.append(f"定价依据第{row}行：采购价下限高于上限")
+        if (
+            {"国内运费下限(CNY)", "国内运费上限(CNY)"}.issubset(numbers)
+            and numbers["国内运费下限(CNY)"] > numbers["国内运费上限(CNY)"]
+        ):
+            errors.append(f"定价依据第{row}行：国内运费下限高于上限")
         if numbers.get("贴单费(CNY)") != 3:
             errors.append(f"定价依据第{row}行：贴单费必须为3元")
         required_math = {
@@ -211,6 +273,82 @@ def validate(path: Path) -> list[str]:
                 errors.append(f"定价依据第{row}行：成本价上限加总不正确")
             if numbers["成本价下限(CNY)"] > numbers["成本价上限(CNY)"]:
                 errors.append(f"定价依据第{row}行：成本价下限高于上限")
+        status = str(pricing.cell(row, columns["定价状态"]).value or "").strip()
+        if not (
+            status == "正式"
+            or status.startswith("暂估：物流代理")
+            or status.startswith("暂停")
+        ):
+            errors.append(
+                f"定价依据第{row}行：定价状态必须为正式、暂估：物流代理或暂停"
+            )
+        international_freight = as_number(
+            pricing.cell(row, columns["国际运费(CNY)"]).value
+        )
+        pricing_price = as_number(pricing.cell(row, columns["建议售价(RUB)"]).value)
+        if international_freight is None and not status.startswith("暂停"):
+            errors.append(f"定价依据第{row}行：非暂停状态必须有国际运费")
+        elif international_freight is not None and international_freight < 0:
+            errors.append(f"定价依据第{row}行：国际运费不能为负数")
+        if pricing_price is None and not status.startswith("暂停"):
+            errors.append(f"定价依据第{row}行：非暂停状态必须有建议售价")
+        elif pricing_price is not None and pricing_price <= 0:
+            errors.append(f"定价依据第{row}行：建议售价必须大于0")
+
+        source = pricing.cell(row, columns["包装数据来源"]).value
+        raw_or_derivation = pricing.cell(row, columns["包装数据原文/推导"]).value
+        confidence = str(
+            pricing.cell(row, columns["包装数据置信度"]).value or ""
+        ).strip()
+        recovery_note = pricing.cell(row, columns["缺失字段与补采记录"]).value
+        if source in (None, ""):
+            errors.append(f"定价依据第{row}行：包装数据来源为空")
+        if raw_or_derivation in (None, ""):
+            errors.append(f"定价依据第{row}行：包装数据原文/推导为空")
+        if confidence not in {"高", "中", "低"}:
+            errors.append(f"定价依据第{row}行：包装数据置信度必须为高/中/低")
+
+        main_record = main_rows_by_item.get(item_key)
+        if main_record:
+            main_row, main_values = main_record
+            main_price = as_number(main_values[8])
+            row_complete = all(
+                is_positive_number(main_values[index]) for index in (2, 3, 4, 5, 8)
+            )
+            if (main_price is None) != (pricing_price is None) or (
+                main_price is not None
+                and pricing_price is not None
+                and abs(main_price - pricing_price) > 0.01
+            ):
+                errors.append(
+                    f"自定义货号{item_key}：主表第{main_row}行建议售价"
+                    f"与定价依据第{row}行不一致"
+                )
+            if row_complete and confidence == "低":
+                errors.append(
+                    f"定价依据第{row}行：完整SKU不能使用低置信度包装数据"
+                )
+            source_text = str(source or "")
+            derivation_text = str(raw_or_derivation or "")
+            uses_proxy = any(
+                marker in source_text + derivation_text
+                for marker in ("代理", "推导", "估算", "代理值")
+            )
+            if uses_proxy and not status.startswith("暂估：物流代理"):
+                errors.append(
+                    f"定价依据第{row}行：代理或推导包装数据必须标记暂估：物流代理"
+                )
+            if not row_complete and recovery_note in (None, ""):
+                errors.append(
+                    f"定价依据第{row}行：不完整SKU必须填写缺失字段与补采记录"
+                )
+
+    missing_pricing = sorted(set(main_rows_by_item) - set(pricing_rows_by_item))
+    orphan_pricing = sorted(set(pricing_rows_by_item) - set(main_rows_by_item))
+    if missing_pricing:
+        errors.append("主表货号缺少定价依据行：" + "、".join(missing_pricing))
+    if orphan_pricing:
+        errors.append("定价依据存在主表没有的货号：" + "、".join(orphan_pricing))
     return errors
 
 

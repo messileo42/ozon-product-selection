@@ -169,8 +169,14 @@ At minimum, `定价依据` must expose these machine-checkable columns, using th
 - `国际运费(CNY)`
 - `建议售价(RUB)`
 - `定价状态`
+- `包装数据来源`
+- `包装数据原文/推导`
+- `包装数据置信度`
+- `缺失字段与补采记录`
 
 `贴单费(CNY)` is `3` for every sellable unit under the user's current rule. `成本价下限/上限` must equal the corresponding purchase-price bound plus domestic-freight bound plus label fee plus other domestic cost. Keep international freight out of these two columns.
+
+Use `包装数据来源` to distinguish exact page text/images, same-supplier equivalent-offer proxies, and explicit derivations. Put the visible raw label or the complete derivation formula and comparable custom item numbers in `包装数据原文/推导`; set confidence to `高`, `中`, or `低`. For every row that is not complete under the five-field gate, `缺失字段与补采记录` must name the missing fields, page/image surfaces already checked, why no defensible value was available, and the next supplier-confirmation or sampling action.
 
 For every custom item number, show:
 
@@ -232,9 +238,10 @@ The nine-column sheet is vulnerable to silent left shifts when a row array conta
    - column H is the CNY cost value/range defined above;
    - column I is a numeric RUB recommendation or blank only when `定价依据` says `暂停`.
 4. Reject any row containing an HTTP URL outside column G.
-5. Verify numeric H cells use a `¥`/CNY number format, range text includes `¥`, and numeric I cells use a `RUB` or `₽` number format.
-6. Count populated SKU rows and rows where C, D, E, F, and I are all positive numeric values. Require `complete >= ceil(total × 0.90)` and report the numerator, denominator, ratio, and per-field counts.
-7. Run `../scripts/validate_listing_workbook.py` against the exported workbook and fix all failures before delivery. The validator also checks the required `定价依据` columns, the fixed ¥3 label fee, the cost-bound arithmetic, and the combined five-field completion ratio.
+5. Reject duplicate `自定义货号` values and duplicate `(商品详情页链接, sku)` combinations. Every main-sheet custom item number must have exactly one `定价依据` row, every pricing row must map back to one main row, and the two suggested-price values must agree.
+6. Verify numeric H cells use a `¥`/CNY number format, range text includes `¥`, and numeric I cells use a `RUB` or `₽` number format.
+7. Count populated SKU rows and rows where C, D, E, F, and I are all positive numeric values. Require `complete >= ceil(total × 0.90)` and report the numerator, denominator, ratio, and per-field counts.
+8. Run `../scripts/validate_listing_workbook.py` against the exported workbook and fix all failures before delivery. The validator also checks the required `定价依据` columns, provenance fields, one-to-one row mapping, the fixed ¥3 label fee, cost-bound arithmetic, and the combined five-field completion ratio.
 
 ## Workbook construction and cleanup
 
