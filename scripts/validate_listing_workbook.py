@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import sys
+from math import ceil, isfinite
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -73,6 +74,41 @@ def as_number(value: object) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def is_positive_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and isfinite(float(value))
+        and float(value) > 0
+    )
+
+
+def completion_summary(rows: list[list[object]]) -> dict[str, object]:
+    fields = {
+        "重量（g）": 2,
+        "长度（mm）": 3,
+        "宽度（mm）": 4,
+        "高度（mm）": 5,
+        "建议售价": 8,
+    }
+    field_counts = {
+        name: sum(is_positive_number(row[index]) for row in rows)
+        for name, index in fields.items()
+    }
+    complete = sum(
+        all(is_positive_number(row[index]) for index in fields.values())
+        for row in rows
+    )
+    total = len(rows)
+    return {
+        "total": total,
+        "complete": complete,
+        "required": ceil(total * 0.90),
+        "ratio": (complete / total) if total else 0.0,
+        "field_counts": field_counts,
+    }
+
+
 def validate(path: Path) -> list[str]:
     workbook = load_workbook(path, data_only=False, read_only=False)
     if "Ozon上品参考" not in workbook.sheetnames:
@@ -84,10 +120,12 @@ def validate(path: Path) -> list[str]:
     except ValueError as exc:
         return [str(exc)]
 
+    populated_rows: list[list[object]] = []
     for row in range(header_row + 1, sheet.max_row + 1):
         values = [sheet.cell(row, col).value for col in range(1, 10)]
         if all(value in (None, "") for value in values):
             continue
+        populated_rows.append(values)
         if not values[0] or not values[1]:
             errors.append(f"第{row}行：sku或自定义货号为空")
         for col in range(3, 7):
@@ -112,6 +150,21 @@ def validate(path: Path) -> list[str]:
                 errors.append(f"第{row}行：建议售价必须为数值或留空")
             elif not has_rub_unit(price_cell.number_format or ""):
                 errors.append(f"第{row}行：建议售价未显示RUB/₽单位")
+
+    completion = completion_summary(populated_rows)
+    if completion["total"] == 0:
+        errors.append("Ozon上品参考没有商品SKU数据行")
+    elif completion["complete"] < completion["required"]:
+        field_text = "，".join(
+            f"{name}{count}/{completion['total']}"
+            for name, count in completion["field_counts"].items()
+        )
+        errors.append(
+            "五项联合完整率不足90%："
+            f"完整{completion['complete']}/{completion['total']}"
+            f"（{completion['ratio']:.1%}），至少需要{completion['required']}行；"
+            f"各字段：{field_text}"
+        )
 
     if "定价依据" not in workbook.sheetnames:
         errors.append("缺少工作表：定价依据")
@@ -162,6 +215,9 @@ def validate(path: Path) -> list[str]:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) != 2:
         print("用法: validate_listing_workbook.py <Ozon上品参考.xlsx>", file=sys.stderr)
         return 2
@@ -175,7 +231,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("校验通过：九列位置、1688链接列和货币单位均正确。")
+    print("校验通过：九列位置、货币单位和五项联合完整率均符合要求。")
     return 0
 
 
