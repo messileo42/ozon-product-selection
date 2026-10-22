@@ -37,9 +37,9 @@ Observe what changes as options are selected. A visible option group is a sellab
 - For an offer with no sellable axis, create one row using the supplier's concise product/model/specification label as the SKU display key. Do not invent a color, size, or other attribute merely to make the cell look structured.
 - Expand the exact variants intended for Ozon listing. Do not create rows for variants that violate the selected product proposition, prohibited substitutions, safety rules, or intellectual-property rules.
 - Preserve the supplier's variant order where practical so the workbook can be checked against the detail page.
-- Creating one placeholder row per product is not an acceptable substitute for variant expansion. If authenticated access is blocked, pause and ask the user to restore the logged-in session instead of delivering the placeholder as a completed listing-reference workbook.
+- Creating one placeholder row per product is not an acceptable substitute for variant expansion. If a direct security-layer refusal, repeated verification wall, or browser-security-policy read block persists after one retry in the attached session, mark the source `安全校验阻断` and stop reading that site for the run. Do not ask the user whether to switch to public pages and do not keep requesting verification. Use only already observed variant evidence; otherwise keep the candidate out of the listing-reference workbook.
 
-For each row, open the exact authenticated 1688 product-detail page. A search-results URL is not acceptable as a product-detail URL. Prefer the canonical offer URL or a direct mobile detail URL containing the offer ID. If no exact product-detail page can be verified, leave the link blank and do not present search-card data as verified SKU data.
+Every listing-reference row must contain an exact 1688 product-detail URL. A search-results URL is not acceptable. Prefer the canonical offer URL or a direct mobile detail URL containing the offer ID. The URL may be captured from an already-visible search-card target when its offer ID is exact, but this proves only the destination URL, not the detail-page contents. If no exact detail URL can be obtained, omit the row from the listing-reference workbook rather than leaving the link blank.
 
 ## Image-based specification extraction
 
@@ -68,7 +68,7 @@ If the page contains conflicting image and text values, prefer neither automatic
 
 ## Measurement and price completion recovery loop
 
-Run this loop after the first SKU expansion and again against the saved workbook immediately before delivery. Treat every blank in `重量（g）`, `长度（mm）`, `宽度（mm）`, `高度（mm）`, or `建议售价` as an unresolved extraction or pricing task.
+Run this loop after the first SKU expansion and again against the saved workbook immediately before delivery. Treat blank weight or suggested price as an unresolved core-data task. Attempt length, width, and height extraction while the source remains readable, but these three dimensions may remain blank after the applicable page/image surfaces have been checked or when the source is marked `安全校验阻断`.
 
 For each incomplete row, attempt recovery in this order and keep the evidence trail in `定价依据`:
 
@@ -77,16 +77,16 @@ For each incomplete row, attempt recovery in this order and keep the evidence tr
 3. Check whether another intended variant on the same offer explicitly shares a package specification. Propagate a measurement only when the page states that the package is shared or the packaging table groups those exact variants together.
 4. Inspect a materially equivalent offer from the same supplier when it is clearly the same model, sellable unit, pack count, material, and packaging method. Record both URLs and label the value `同供应商同款代理`; do not silently treat it as exact offer data.
 5. Derive single-unit packed measurements only from explicit source facts. Acceptable examples include carton dimensions/weight divided by an unambiguous unit count and layout, or product dimensions plus a disclosed packaging allowance supported by same-run verified comparables of the same rigidity, shape, material, and packing method. Use the conservative larger/heavier bound. Record the formula, comparable custom item numbers, and confidence. Do not derive dimensions merely by dividing carton sides when the packing arrangement is unknown.
-6. If a defensible measurement proxy still cannot be built, search for an equivalent supplier offer with clearer single-unit package data and executable pricing. Prefer replacing the sourcing offer over retaining an avoidably incomplete row. If replacement changes the product proposition, price, quality, MOQ, or risk, re-run the commercial decision rather than substituting silently.
+6. If a defensible weight or pricing proxy still cannot be built, search for an equivalent supplier offer with clearer single-unit package data and executable pricing while 1688 remains readable. Prefer replacing the sourcing offer over retaining an avoidably incomplete core-data row. Do not continue this loop after `安全校验阻断`; record the block and preserve blank dimensions rather than inventing them.
 7. Recalculate `建议售价` row by row after measurements change. Use the current input workbooks and the conservative logistics proxy hierarchy. A row with a defensible proxy should receive a numeric provisional price and `暂估：物流代理`; a row with no defensible cost/logistics basis remains `暂停` and is incomplete.
 
 Completion is measured at SKU-row grain:
 
-`complete row = positive numeric weight + length + width + height + suggested price`
+`core-complete row = positive numeric weight + positive numeric suggested price`
 
-`completion ratio = complete populated SKU rows / all populated SKU rows`
+`core completion ratio = core-complete populated SKU rows / all populated SKU rows`
 
-Require `complete rows >= ceil(total populated SKU rows × 0.90)`. This is a combined five-field test, not five independent averages. Duplicate rows, zeroes, text such as `待确认`, product-only measurements presented as packed measurements, and unsupported category averages do not count. If the ratio is below 90%, the workbook is not deliverable: continue recovery, replace/downgrade incomplete offers, or return fewer listing-ready candidates. For the remaining at most 10%, show the missing fields, every source surface attempted, why no defensible proxy exists, and the exact sampling/supplier-confirmation action. Do not fabricate values to satisfy the gate.
+Require `core-complete rows >= ceil(total populated SKU rows × 0.90)`, and independently require a valid exact 1688 detail URL on every populated row. Duplicate rows, zeroes, text such as `待确认`, and unsupported category averages do not count. Missing length, width, or height does not reduce the core completion ratio. If core coverage is below 90%, continue recovery while sources remain readable, replace/downgrade unsupported offers, or return fewer listing-ready candidates. For any missing field, record the checked surfaces or `安全校验阻断` state and the next sampling/supplier-confirmation action. Do not fabricate values to satisfy the gate.
 
 ## Main sheet schema
 
@@ -106,8 +106,8 @@ Field rules:
 
 - `sku`: join the exact visible labels of the product's actual selected variant axes with `\`. This is a deterministic display key, not an invented product specification. Any example in this reference is illustrative only. If 1688 also exposes a separate internal SKU code or supplier model, record it in `定价依据`; do not leave the main `sku` blank merely because that code is absent.
 - `自定义货号`: uppercase pinyin initials of the Chinese product name, one to four letters, followed by a unique four-digit sequence. Remove brand names before forming the prefix. Sort by product decision rank and supplier variant order, then assign `0001`, `0002`, and so on. Each row must be unique. Example format: `BZ0001`.
-- `重量（g）` and dimensions: use variant-specific single-unit shipping/packed data from selectable text or a visually verified detail-page image. Convert kilograms to grams and centimeters to millimeters while retaining raw values in `定价依据`. Product-specific measurements—such as fit measurements, diameter, usable length, capacity, compatible-device size, or recommended user/pet range—are not automatically package length/width/height. Keep variant-bound descriptors in `sku` or supporting evidence and do not force them into logistics columns. Do not substitute unsupported product-only dimensions, net weight, carton data, another unrelated variant's data, category estimates, or a visual size guess. A documented proxy from the recovery loop may populate the numeric main field only when its derivation and confidence are recorded in `定价依据`. A blank is acceptable during extraction, but final delivery must pass the combined 90% completion gate.
-- `商品详情页链接`: store the verified exact 1688 detail URL as a hyperlink. The same offer URL may repeat across its variants.
+- `重量（g）` and dimensions: use variant-specific single-unit shipping/packed data from selectable text or a visually verified detail-page image. Convert kilograms to grams and centimeters to millimeters while retaining raw values in `定价依据`. Product-specific measurements—such as fit measurements, diameter, usable length, capacity, compatible-device size, or recommended user/pet range—are not automatically package length/width/height. Keep variant-bound descriptors in `sku` or supporting evidence and do not force them into logistics columns. Do not substitute unsupported product-only dimensions, net weight, carton data, another unrelated variant's data, category estimates, or a visual size guess. A documented proxy from the recovery loop may populate the numeric main field only when its derivation and confidence are recorded in `定价依据`. Length, width, and height may remain blank in the final workbook when unavailable; weight still participates in the 90% core-data gate.
+- `商品详情页链接`: store the exact 1688 detail URL as a hyperlink. Record separately whether the page contents were verified or security-blocked. The same offer URL may repeat across its variants.
 - Numeric measurement and suggested-price cells must be numeric, not numbers embedded in text. Keep `sku` and `自定义货号` as text. Preserve the exact nine headers, but display currency units in every populated price row: `成本价` uses `¥`/CNY and `建议售价` uses `RUB` or `₽`.
 
 ## Cost-price field
@@ -176,7 +176,7 @@ At minimum, `定价依据` must expose these machine-checkable columns, using th
 
 `贴单费(CNY)` is `3` for every sellable unit under the user's current rule. `成本价下限/上限` must equal the corresponding purchase-price bound plus domestic-freight bound plus label fee plus other domestic cost. Keep international freight out of these two columns.
 
-Use `包装数据来源` to distinguish exact page text/images, same-supplier equivalent-offer proxies, and explicit derivations. Put the visible raw label or the complete derivation formula and comparable custom item numbers in `包装数据原文/推导`; set confidence to `高`, `中`, or `低`. For every row that is not complete under the five-field gate, `缺失字段与补采记录` must name the missing fields, page/image surfaces already checked, why no defensible value was available, and the next supplier-confirmation or sampling action.
+Use `包装数据来源` to distinguish exact page text/images, same-supplier equivalent-offer proxies, explicit derivations, and `安全校验阻断`. Put the visible raw label, complete derivation formula, or exact access error in `包装数据原文/推导`; set confidence to `高`, `中`, or `低`. Whenever weight, dimensions, or suggested price is missing, `缺失字段与补采记录` must name the missing fields, page/image surfaces checked before the block, why no defensible value was available, and the next supplier-confirmation or sampling action.
 
 For every custom item number, show:
 
@@ -240,8 +240,8 @@ The nine-column sheet is vulnerable to silent left shifts when a row array conta
 4. Reject any row containing an HTTP URL outside column G.
 5. Reject duplicate `自定义货号` values and duplicate `(商品详情页链接, sku)` combinations. Every main-sheet custom item number must have exactly one `定价依据` row, every pricing row must map back to one main row, and the two suggested-price values must agree.
 6. Verify numeric H cells use a `¥`/CNY number format, range text includes `¥`, and numeric I cells use a `RUB` or `₽` number format.
-7. Count populated SKU rows and rows where C, D, E, F, and I are all positive numeric values. Require `complete >= ceil(total × 0.90)` and report the numerator, denominator, ratio, and per-field counts.
-8. Run `../scripts/validate_listing_workbook.py` against the exported workbook and fix all failures before delivery. The validator also checks the required `定价依据` columns, provenance fields, one-to-one row mapping, the fixed ¥3 label fee, cost-bound arithmetic, and the combined five-field completion ratio.
+7. Require a valid exact 1688 detail URL in column G for every populated row. Count rows where C and I are both positive numeric values and require `core complete >= ceil(total × 0.90)`. Report the numerator, denominator, ratio, and coverage of weight, each optional dimension, suggested price, and detail URL.
+8. Run `../scripts/validate_listing_workbook.py` against the exported workbook and fix all failures before delivery. The validator also checks the required `定价依据` columns, provenance fields, one-to-one row mapping, the fixed ¥3 label fee, cost-bound arithmetic, 100% exact-detail-link coverage, and the combined weight-and-price completion ratio.
 
 ## Workbook construction and cleanup
 

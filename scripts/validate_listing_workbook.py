@@ -91,7 +91,7 @@ def is_positive_number(value: object) -> bool:
 
 
 def completion_summary(rows: list[list[object]]) -> dict[str, object]:
-    fields = {
+    reported_fields = {
         "重量（g）": 2,
         "长度（mm）": 3,
         "宽度（mm）": 4,
@@ -100,10 +100,11 @@ def completion_summary(rows: list[list[object]]) -> dict[str, object]:
     }
     field_counts = {
         name: sum(is_positive_number(row[index]) for row in rows)
-        for name, index in fields.items()
+        for name, index in reported_fields.items()
     }
+    core_indexes = (reported_fields["重量（g）"], reported_fields["建议售价"])
     complete = sum(
-        all(is_positive_number(row[index]) for index in fields.values())
+        all(is_positive_number(row[index]) for index in core_indexes)
         for row in rows
     )
     total = len(rows)
@@ -189,7 +190,7 @@ def validate(path: Path) -> list[str]:
             for name, count in completion["field_counts"].items()
         )
         errors.append(
-            "五项联合完整率不足90%："
+            "重量与建议售价联合完整率不足90%："
             f"完整{completion['complete']}/{completion['total']}"
             f"（{completion['ratio']:.1%}），至少需要{completion['required']}行；"
             f"各字段：{field_text}"
@@ -369,7 +370,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("校验通过：九列位置、货币单位和五项联合完整率均符合要求。")
+    print("校验通过：九列位置、货币单位、详情链接和重量/建议售价完整率均符合要求。")
     return 0
 
 

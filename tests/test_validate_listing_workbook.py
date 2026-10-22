@@ -85,7 +85,33 @@ class ValidateListingWorkbookTests(unittest.TestCase):
         path = self.make_path()
         build_workbook(path, complete_rows=8)
         errors = validate(path)
-        self.assertTrue(any("五项联合完整率不足90%" in error for error in errors))
+        self.assertTrue(any("重量与建议售价联合完整率不足90%" in error for error in errors))
+
+    def test_missing_dimensions_do_not_block_delivery(self) -> None:
+        path = self.make_path()
+        build_workbook(path, complete_rows=10)
+        workbook = load_workbook(path)
+        main = workbook["Ozon上品参考"]
+        pricing = workbook["定价依据"]
+        recovery_col = REQUIRED_PRICING_HEADERS.index("缺失字段与补采记录") + 1
+        for row in range(2, 12):
+            for col in range(4, 7):
+                main.cell(row, col).value = None
+            pricing.cell(row, recovery_col).value = (
+                "缺长宽高；详情页未披露或安全校验阻断，待样品复测"
+            )
+        workbook.save(path)
+        self.assertEqual(validate(path), [])
+
+    def test_every_row_requires_exact_detail_url(self) -> None:
+        path = self.make_path()
+        build_workbook(path)
+        workbook = load_workbook(path)
+        main = workbook["Ozon上品参考"]
+        main.cell(2, 7).value = "https://s.1688.com/selloffer/offer_search.htm"
+        workbook.save(path)
+        errors = validate(path)
+        self.assertTrue(any("G列不是有效1688详情链接" in error for error in errors))
 
     def test_duplicate_rows_are_rejected(self) -> None:
         path = self.make_path()
